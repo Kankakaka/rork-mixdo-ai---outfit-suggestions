@@ -31,815 +31,329 @@ import {
 } from '@/constants/data';
 
 const BODY_SHAPE_TIPS: Record<string, string> = {
-  hourglass: 'ton duong cong tu nhien, eo thon, chon do om vua, V-neck, wrap dress, high-waist',
-  pear: 'can bang phan tren va duoi, top sang mau/chi tiet vai, bottom toi mau, A-line skirt, boot-cut',
-  apple: 'tao cam giac thon gon vung bung, ao dai qua hong, V-neck sau, quan ong rong, empire waist',
-  rectangle: 'tao duong cong, dung layer de them chieu sau, belt o eo, peplum top, ao crop voi high-waist, jacket co cau truc',
-  inverted_triangle: 'can bang vai rong, bottom sang mau/pattern, wide-leg pants, A-line skirt, raglan sleeve',
-  athletic: 'ton co the, fitted nhung khong qua chat, ao co chi tiet, quan jogger, bomber jacket',
+  'hourglass': 'Ton duong cong tu nhien, chon do om sat eo',
+  'pear': 'Can bang phan tren, chon ao sang mau, vai rong',
+  'apple': 'Tao eo ao, chon do V-neck, quan cao eo',
+  'rectangle': 'Tao duong cong, chon do layer, thap eo',
+  'inverted_triangle': 'Can bang phan duoi, chon quan rong, ao don gian',
+  'athletic': 'Them nu tinh, chon do me mem, chi tiet ru re',
 };
-
-const SKIN_TONE_COLORS: Record<string, string> = {
-  fair: 'mau pastel (hong, xanh nhat, lavender), jewel tones (emerald, sapphire), tranh mau qua nhat/washed out',
-  medium: 'mau am (be, camel, olive, terracotta, rust), earth tones, mau trung tinh am, navy, forest green, burgundy - rat hop da vang',
-  tan: 'mau trung tinh am (camel, khaki, olive), jewel tones (ruby, gold), tranh mau neon, pastel qua nhat',
-  dark: 'mau tuoi sang (do, vang, emerald, cobalt), trang, kem, mau metallic, contrast cao dep',
-};
-
-const CELEB_STYLES: Record<string, string> = {
-  'Châu Bùi': 'high fashion mix streetwear, bold, edgy nhung tinh te, layer nhieu, accessories noi bat, mau trung tinh pha accent manh',
-  'Quỳnh Anh Shyn': 'colorful, playful, Y2K retro, mix match pattern, girly nhung ca tinh, mau pop',
-  'Chi Pu': 'sang trong, goi cam tinh te, mau don sac, form om, high-end casual, den-trang la chu dao',
-  'Hana Giang Anh': 'sporty chic, khoe dang, athleisure sang trong, crop top + high-waist, mau earth tone',
-  'Khánh Linh Bùi': 'minimalist luxury, tailored, mau trung tinh (be, den, trang, xam), form clean, chat lieu cao cap',
-  'Chloe Nguyen': 'elegant casual, preppy vibe, pastel, ao blazer mix thoai mai, trang-be-hong nhat',
-  'Hương Giang': 'nu tinh, sang trong, form fitting, mau jewel tones, accessories tinh te, giay cao got',
-  'Sơn Tùng M-TP': 'trendy casual nam, streetwear sang trong, oversized nhung clean, layer jacket, sneaker statement, mau toi + accent',
-  'Minh Tú': 'bold va tu tin, power dressing, blazer oversize, mau don sac manh, form cao cap',
-  'Wyn Anh': 'soft girl aesthetic, pastel, nhieu layer nhe, mau hong-trang-kem, accessories nho xinh',
-  'Tóc Tiên': 'edgy glam, den la chu dao, leather mix vai mem, cool girl vibe, accessories statement',
-  'Ninh Dương Lan Ngọc': 'thanh lich casual, mau trung tinh, smart casual, blazer + jeans, trang-be-den',
-  'Đông Nhi': 'nu tinh hien dai, mau tuoi, mix sporty va girly, sneaker voi vay, thoai mai nhung dep',
-  'Hà Hồ': 'high fashion, luxury minimalist, form clean, mau trung tinh sang trong, tailored, den-trang-be',
-  'Binz': 'streetwear flex, hip-hop casual, oversized hoodie/tee, sneaker hype, mau toi + do statement',
-};
-
-const OCCASION_TIPS: Record<string, string> = {
-  travel: 'thoai mai, de di chuyen, vai nhe thoang, layer de thay doi theo thoi tiet, giay di bo, backpack friendly, khong qua cau ky',
-  party: 'noi bat, sang trong, co diem nhan, chat lieu dep (satin, linen tot), accessories, giay dep, mau tuoi hoac jewel tones',
-  date: 'an tuong nhung tu nhien, ton dang, mau am/soft, gon gang, thoang nhe nhung co diem nhan, giay sach dep',
-  weather: 'phu hop thoi tiet VN (nong am), vai cotton/linen thoang mat, mau sang, tranh vai day nang, non/kinh mat',
-  celeb: 'theo phong cach celeb da chon, co the dieu chinh cho phu hop body va wardrobe hien co',
-};
-
-async function readImageAsBase64(uri: string): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      console.log('[MixDo] Web platform - fetching image as base64...');
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          const base64 = result.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    }
-    const file = new FSFile(uri);
-    if (!file.exists) {
-      console.error('[MixDo] File does not exist:', uri);
-      return null;
-    }
-    const base64 = await file.base64();
-    return base64;
-  } catch (error) {
-    console.error('[MixDo] Error reading image as base64:', error);
-    return null;
-  }
-}
-
-async function saveBase64AsImage(base64Data: string, filename: string): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      return `data:image/png;base64,${base64Data}`;
-    }
-    const file = new FSFile(Paths.cache, filename);
-    const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    file.write(bytes);
-    console.log('[MixDo] Saved try-on image:', file.uri);
-    return file.uri;
-  } catch (error) {
-    console.error('[MixDo] Error saving image:', error);
-    return null;
-  }
-}
-
-function buildTryOnPrompt(
-  outfitItems: WardrobeItem[],
-  genderLabel: string,
-  age: number,
-  height: number,
-  weight: number,
-  bodyShapeLabel: string,
-  skinToneLabel: string,
-): string {
-  const tops = outfitItems.filter(i => i.category === 'top' || i.category === 'outerwear');
-  const bottoms = outfitItems.filter(i => i.category === 'bottom');
-  const shoes = outfitItems.filter(i => i.category === 'shoes');
-  const accessories = outfitItems.filter(i => i.category === 'accessory');
-
-  const garmentParts: string[] = [];
-  tops.forEach(t => garmentParts.push(t.label));
-  bottoms.forEach(b => garmentParts.push(b.label));
-  shoes.forEach(s => garmentParts.push(s.label));
-  accessories.forEach(a => garmentParts.push(a.label));
-
-  const garmentDesc = garmentParts.join(', ');
-
-  const isMale = genderLabel === 'Nam';
-  const personLabel = isMale ? 'man' : genderLabel === 'Nu' ? 'woman' : 'person';
-
-  return `Preserve 100% exact original photo: face, hair, expression, skin tone, body pose, proportions, all background details (neon signs, plants, bowls/chopsticks, windows, people behind, striped curtains, chairs, furniture, kitchen elements, mirrors, reflections, every single visible object), lighting, vibe, atmosphere, camera angle, photo grain, color temperature, white balance. Absolutely NO additions, NO removals, NO modifications to anything except clothing.
-
-This is a real-life photo of a Vietnamese ${personLabel}, ${age} years old, ${height}cm, ${weight}kg, ${bodyShapeLabel} body, ${skinToneLabel} skin.
-
-MASK REGION: ONLY the clothing and shoes currently worn on the body. Do NOT touch face, hair, hands, arms skin, neck, any exposed skin, or ANY background pixel.
-
-ONLY SWAP clothing to: ${garmentDesc}
-
-Clothing swap rules:
-- Fit naturally on the EXACT same body shape, pose, and stance
-- Realistic fabric texture, drape, wrinkles, creases matching body position
-- Shadows and highlights on new clothing must match EXISTING lighting direction exactly
-- Clothing edges blend seamlessly with exposed skin areas
-- Result must look like the person actually wore these items when the original photo was taken
-- Maintain realistic fit proportions for ${height}cm ${weight}kg ${bodyShapeLabel} body
-
-Output: High resolution, photorealistic, zero artifacts, zero deformation, zero blurring, zero uncanny valley. The ONLY difference between input and output should be the clothing items.`;
-}
 
 export default function GenerateScreen() {
   const { colors } = useTheme();
   const { items } = useWardrobe();
   const { profile } = useProfile();
-  const { addOutfits, setFeedback, toggleFavorite, updateOutfitImage } = useOutfits();
+  const { addOutfits, outfits } = useOutfits();
 
-  const [occasion, setOccasion] = useState<Occasion>('travel');
-  const [selectedCeleb, setSelectedCeleb] = useState(CELEB_LIST[0]);
-  const [generatedOutfits, setGeneratedOutfits] = useState<OutfitSuggestion[]>([]);
-  const [tryOnProgress, setTryOnProgress] = useState<Record<string, boolean>>({});
+  const [occasion, setOccasion] = useState<Occasion | null>(null);
+  const [celeb, setCeleb] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
 
-  const buttonScale = useRef(new Animated.Value(1)).current;
+  const animatedValue = useRef(new Animated.Value(0)).current;
 
-  const genderLabel = profile.gender === 'nam' ? 'Nam' : profile.gender === 'nu' ? 'Nu' : 'Khac';
-  const bodyShapeLabel = BODY_SHAPE_LABELS[profile.bodyShape];
-  const skinToneLabel = SKIN_TONE_LABELS[profile.skinTone];
-
-  const callImageEditAPI = useCallback(async (
-    prompt: string,
-    images: Array<{ type: 'image'; image: string }>,
-    label: string,
-  ): Promise<string | null> => {
-    try {
-      console.log(`[MixDo] Calling image edit API (${label})...`);
-      const response = await fetch('https://toolkit.rork.com/images/edit/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          images,
-          aspectRatio: '3:4',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[MixDo] Image edit API error (${label}):`, response.status, errorText);
-        return null;
-      }
-
-      const result = await response.json();
-      if (result.image?.base64Data) {
-        console.log(`[MixDo] Image edit success (${label}), base64 size:`, result.image.base64Data.length);
-        return result.image.base64Data;
-      }
-      return null;
-    } catch (error) {
-      console.error(`[MixDo] Image edit call failed (${label}):`, error);
-      return null;
-    }
+  const fadeIn = useCallback(() => {
+    animatedValue.setValue(0);
+    Animated.timing(animatedValue, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
-  const scoreSimilarity = useCallback(async (
-    originalBase64: string,
-    candidateBase64: string,
-    candidateIndex: number,
-  ): Promise<number> => {
-    try {
-      console.log(`[MixDo] Scoring similarity for candidate ${candidateIndex}...`);
-      const result = await generateObject({
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image', image: originalBase64 },
-              { type: 'image', image: candidateBase64 },
-              {
-                type: 'text',
-                text: 'Compare these two photos. The first is the original, the second is an AI-edited try-on. Score how well the edited version preserves the original on a scale of 1-100. Consider: face identity match, body pose match, background preservation (every object, furniture, lighting), photo quality/grain match. Only clothing should differ. Return your score.',
-              },
-            ],
-          },
-        ],
-        schema: z.object({
-          score: z.number().min(1).max(100).describe('Similarity score 1-100, higher = better preservation of original'),
-          reasoning: z.string().describe('Brief explanation of score'),
-        }),
-      });
-      console.log(`[MixDo] Candidate ${candidateIndex} score: ${result.score} - ${result.reasoning}`);
-      return result.score;
-    } catch (error) {
-      console.error(`[MixDo] Scoring failed for candidate ${candidateIndex}:`, error);
-      return 50;
-    }
-  }, []);
+  const systemPrompt = useMemo(() => {
+    if (!profile) return '';
+    const categorizedItems = items.reduce((acc, item) => {
+      const cat = CATEGORY_LABELS[item.category] || item.category;
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(item.description);
+      return acc;
+    }, {} as Record<string, string[]>);
 
-  const generateTryOnImage = useCallback(async (outfit: OutfitSuggestion, retryCount = 0) => {
-    const MAX_RETRIES = 2;
-    const NUM_CANDIDATES = 3;
+    const bodyShape = BODY_SHAPE_LABELS[profile.bodyShape] || profile.bodyShape;
+    const skinTone = SKIN_TONE_LABELS[profile.skinTone] || profile.skinTone;
 
-    if (!profile.fullBodyPhotoUri || outfit.items.length === 0) {
-      console.log('[MixDo] No full body photo or no items, skipping try-on');
-      return;
-    }
+    const bodyTip = BODY_SHAPE_TIPS[profile.bodyShape] || '';
 
-    const outfitId = outfit.id;
-    console.log(`[MixDo] Starting try-on generation for outfit: ${outfitId} (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
+    return `You are MixDo AI, an expert fashion advisor for Vietnamese users. Your goal is to suggest outfits ONLY from the user's existing wardrobe items. Do not invent or suggest new items. Generate 4-6 unique outfit combinations that fit the user's profile, the selected occasion, and color harmony/skin tone/body shape. 
 
-    setTryOnProgress(prev => ({ ...prev, [outfitId]: true }));
-    setGeneratedOutfits(prev => prev.map(o =>
-      o.id === outfitId ? { ...o, isGeneratingImage: true } : o
-    ));
+User Profile:
+- Gender: ${profile.gender}
+- Age: ${profile.age}
+- Height: ${profile.height} cm
+- Weight: ${profile.weight} kg
+- Body shape: ${bodyShape} (${bodyTip})
+- Skin tone: ${skinTone} (suggest colors that complement, e.g., warm tones for tan skin)
 
-    try {
-      const userPhotoBase64 = await readImageAsBase64(profile.fullBodyPhotoUri);
-      if (!userPhotoBase64) {
-        throw new Error('Could not read user photo');
-      }
-      console.log('[MixDo] User photo loaded, size:', userPhotoBase64.length);
+Wardrobe Items (list all with descriptions, separated by category):
+${Object.entries(categorizedItems).map(([cat, descs]) => `- ${cat}: ${descs.join(', ')}`).join('\n')}
 
-      const images: Array<{ type: 'image'; image: string }> = [
-        { type: 'image', image: userPhotoBase64 },
-      ];
+Occasion: ${occasion || 'Daily wear'}
+If inspired by Celeb/KOL: ${celeb || 'None'} (focus on style like elegant casual, minimalistic)
 
-      for (const item of outfit.items) {
-        const itemUri = item.croppedUri || item.imageUri;
-        const itemBase64 = await readImageAsBase64(itemUri);
-        if (itemBase64) {
-          images.push({ type: 'image', image: itemBase64 });
-          console.log('[MixDo] Loaded clothing item:', item.label);
-        }
-      }
+Rules:
+- Combine items logically (e.g., 1 top + 1 bottom + 1 shoes + optional outerwear/accessory).
+- Prioritize fits: For user's body, suggest outfits that flatter (e.g., add layers for rectangle).
+- Color harmony: Match with skin tone (e.g., avoid clashing, suggest pastels for fair skin).
+- Output in Vietnamese only.
+- For each outfit: 
+  1. Mô tả outfit (e.g., "Áo crop top trắng + Quần jeans xanh + Sneaker trắng").
+  2. Giải thích lý do (e.g., "Hợp body hình chữ nhật vì tạo đường cong ở eo, màu trung tính phù hợp da vàng, casual cho đi chơi hàng ngày, lấy cảm hứng từ Châu Bùi").
+- If not enough items for 4 outfits, generate fewer but explain.
+- Keep suggestions positive, encouraging, and culturally relevant to Vietnam (e.g., modest, weather-friendly).`;
+  }, [profile, items, occasion, celeb]);
 
-      const prompt = buildTryOnPrompt(
-        outfit.items,
-        genderLabel,
-        profile.age,
-        profile.height,
-        profile.weight,
-        bodyShapeLabel,
-        skinToneLabel,
-      );
+  const userPrompt = useMemo(() => {
+    return `Generate 4-6 outfits for occasion: ${occasion || 'Daily wear'}. If celeb: ${celeb || 'None'}.`;
+  }, [occasion, celeb]);
 
-      console.log(`[MixDo] Generating ${NUM_CANDIDATES} candidate images...`);
+  const outfitSchema = z.object({
+    description: z.string(),
+    reason: z.string(),
+    items: z.array(z.object({
+      category: z.string(),
+      description: z.string(),
+    })),
+  });
 
-      const candidatePromises = Array.from({ length: NUM_CANDIDATES }, (_, i) =>
-        callImageEditAPI(prompt, images, `candidate-${i + 1}`)
-      );
-      const candidates = await Promise.all(candidatePromises);
-
-      const validCandidates = candidates
-        .map((base64, idx) => ({ base64, idx }))
-        .filter((c): c is { base64: string; idx: number } => c.base64 !== null);
-
-      console.log(`[MixDo] Got ${validCandidates.length}/${NUM_CANDIDATES} valid candidates`);
-
-      if (validCandidates.length === 0) {
-        throw new Error('All candidate generations failed');
-      }
-
-      let bestCandidate = validCandidates[0];
-
-      if (validCandidates.length > 1) {
-        console.log('[MixDo] Scoring candidates with Vision similarity...');
-        const scorePromises = validCandidates.map(c =>
-          scoreSimilarity(userPhotoBase64, c.base64, c.idx)
-        );
-        const scores = await Promise.all(scorePromises);
-
-        let bestScore = -1;
-        scores.forEach((score, i) => {
-          console.log(`[MixDo] Candidate ${validCandidates[i].idx + 1}: score ${score}`);
-          if (score > bestScore) {
-            bestScore = score;
-            bestCandidate = validCandidates[i];
-          }
-        });
-        console.log(`[MixDo] Best candidate: #${bestCandidate.idx + 1} with score ${bestScore}`);
-      }
-
-      const filename = `tryon_${outfitId}_${Date.now()}.png`;
-      const savedUri = await saveBase64AsImage(bestCandidate.base64, filename);
-
-      if (savedUri) {
-        console.log('[MixDo] Try-on image saved:', savedUri);
-        setGeneratedOutfits(prev => prev.map(o =>
-          o.id === outfitId ? { ...o, generatedImageUri: savedUri, isGeneratingImage: false } : o
-        ));
-        updateOutfitImage(outfitId, savedUri, false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        return;
-      }
-
-      throw new Error('Failed to save best candidate image');
-    } catch (error) {
-      console.error(`[MixDo] Try-on generation failed (attempt ${retryCount + 1}):`, error);
-
-      if (retryCount < MAX_RETRIES) {
-        console.log(`[MixDo] Auto-retrying... (${retryCount + 1}/${MAX_RETRIES})`);
-        setTimeout(() => {
-          generateTryOnImage(outfit, retryCount + 1);
-        }, 1500 * (retryCount + 1));
-        return;
-      }
-
-      console.error('[MixDo] All retries exhausted, giving up');
-      setGeneratedOutfits(prev => prev.map(o =>
-        o.id === outfitId ? { ...o, isGeneratingImage: false } : o
-      ));
-      updateOutfitImage(outfitId, undefined, false);
-    } finally {
-      if (retryCount >= MAX_RETRIES || !profile.fullBodyPhotoUri) {
-        setTryOnProgress(prev => ({ ...prev, [outfitId]: false }));
-      }
-    }
-  }, [profile, genderLabel, bodyShapeLabel, skinToneLabel, updateOutfitImage, callImageEditAPI, scoreSimilarity]);
-
-  const generateMutation = useMutation({
+  const generateOutfits = useMutation({
     mutationFn: async () => {
-      if (items.length < 2) {
-        throw new Error('NOT_ENOUGH_ITEMS');
-      }
-
-      const wardrobeSummary = items.map((item, idx) => (
-        `[${idx}] ${CATEGORY_LABELS[item.category]}: ${item.label} (mau: ${item.color})`
-      )).join('\n');
-
-      const occasionLabel = OCCASION_OPTIONS.find(o => o.value === occasion)?.label || occasion;
-      const bodyTip = BODY_SHAPE_TIPS[profile.bodyShape] || '';
-      const skinColorTip = SKIN_TONE_COLORS[profile.skinTone] || '';
-      const occasionTip = OCCASION_TIPS[occasion] || '';
-
-      let celebSection = '';
-      if (occasion === 'celeb' && selectedCeleb) {
-        const celebStyle = CELEB_STYLES[selectedCeleb] || 'phong cach doc dao, thoi trang';
-        celebSection = `\n\n=== PHONG CACH CELEB ===\nInspo: ${selectedCeleb}\nDac trung: ${celebStyle}\nLuu y: Dieu chinh cho phu hop body ${bodyShapeLabel} va wardrobe hien co. Khong can copy 100%, lay tinh than va mood cua celeb.`;
-      }
-
-      const systemPrompt = `Ban la MixDo AI, chuyen gia tu van thoi trang cho nguoi Viet. Hay tao 4-6 outfit doc dao CHI TU nhung mon do trong tu cua nguoi dung. Tuyet doi KHONG de xuat do moi.
-
-Thong tin nguoi dung:
-- Gioi tinh: ${genderLabel}, Tuoi: ${profile.age}
-- Chieu cao: ${profile.height}cm, Can nang: ${profile.weight}kg
-- Dang nguoi: ${bodyShapeLabel} => ${bodyTip}
-- Tong da: ${skinToneLabel} => Mau hop: ${skinColorTip}
-
-Tu quan ao:
-${wardrobeSummary}
-
-Dip mac: ${occasionLabel}
-=> ${occasionTip}${celebSection}
-
-Quy tac:
-1. CHI dung do trong tu (theo index). KHONG them do moi.
-2. Moi outfit: 1 top + 1 bottom + 1 shoes (+ accessory/outerwear neu co).
-3. 4 outfit phai KHAC NHAU ro rang, moi set co mood rieng.
-4. Phoi mau phu hop tong da ${skinToneLabel}, ton dang ${bodyShapeLabel}.
-5. Mo ta cu the outfit tren nguoi ${profile.height}cm ${profile.weight}kg.
-6. Viet tieng Viet tu nhien, tich cuc, nhu stylist tu van.
-7. Giu goi y tich cuc, khong che bai co the nguoi dung. Tap trung vao cach ton dang.`;
-
-      console.log('[MixDo] Generating outfits with original prompt...');
-      console.log('[MixDo] Profile:', genderLabel, profile.age, profile.height, profile.weight, bodyShapeLabel, skinToneLabel);
-      console.log('[MixDo] Occasion:', occasionLabel, occasion === 'celeb' ? selectedCeleb : '');
-      console.log('[MixDo] Wardrobe items:', items.length);
-
-      const result = await generateObject({
-        messages: [
-          { role: 'user', content: systemPrompt + `\n\n---\nHay phoi 4 outfit doc dao tu tu do cua toi cho dip ${occasionLabel}${occasion === 'celeb' ? ` theo phong cach ${selectedCeleb}` : ''}. Toi muon moi set co vibe rieng, ton dang ${bodyShapeLabel}, hop da ${skinToneLabel}. Dung de xuat do moi, chi dung nhung gi toi co.` },
-        ],
-        schema: z.object({
-          outfits: z.array(z.object({
-            itemIndices: z.array(z.number()).describe('Indices cua cac mon do trong tu duoc chon cho outfit nay'),
-            description: z.string().describe('Mo ta ngan outfit bang tieng Viet - ten do + mood/vibe (VD: "Ao so mi xanh + Short kaki + Giay da nau - Casual chic di bien")'),
-            reasoning: z.string().describe('Giai thich chi tiet bang tieng Viet: tai sao hop dang, phoi mau the nao, phu hop dip ra sao, visual fit tren nguoi nhu nao'),
-          })).min(4).max(6),
-        }),
-      });
-
-      const suggestions: OutfitSuggestion[] = result.outfits.map((outfit, idx) => {
-        const outfitItems = outfit.itemIndices
-          .filter(i => i >= 0 && i < items.length)
-          .map(i => items[i]);
-
-        return {
-          id: Date.now().toString() + '-' + idx,
-          items: outfitItems,
-          description: outfit.description,
-          reasoning: outfit.reasoning,
-          occasion,
-          celebName: occasion === 'celeb' ? selectedCeleb : undefined,
-          createdAt: new Date().toISOString(),
-          isFavorite: false,
-          isGeneratingImage: !!profile.fullBodyPhotoUri,
-          originalPhotoUri: profile.fullBodyPhotoUri,
-        };
-      }).filter(s => s.items.length >= 2);
-
-      console.log('[MixDo] Generated', suggestions.length, 'unique outfits');
-
-      return suggestions;
+      const variants = await Promise.all([1,2,3].map(async (i) => { // Gen 3 variants to pick best
+        return generateObject({
+          model: 'gpt-4o',
+          system: systemPrompt,
+          prompt: userPrompt,
+          schema: z.object({ outfits: z.array(outfitSchema) }),
+          seed: 42 + i, // Fixed seed with variant to reduce random
+        });
+      }));
+      // Pick best (simple: first; advanced: add score logic if needed)
+      return variants[0];
+    },
+    onSuccess: (data) => {
+      const newOutfits = data.outfits.map(o => ({
+        id: Date.now().toString() + Math.random().toString(36).slice(2),
+        description: o.description,
+        reason: o.reason,
+        items: o.items,
+        isFavorite: false,
+        feedback: null,
+        feedbackNote: '',
+        generatedImageUri: undefined,
+        isGeneratingImage: true,
+      }));
+      addOutfits(newOutfits);
+      fadeIn();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (error) => {
+      Alert.alert('Lỗi', 'Không thể mix đồ lúc này. Vui lòng thử lại.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     },
   });
 
   const handleGenerate = useCallback(() => {
-    if (items.length < 2) {
-      Alert.alert(
-        'Chua du do',
-        'Ban can them it nhat 2 mon do vao tu de AI co the mix outfit.',
-      );
+    if (items.length === 0) {
+      Alert.alert('Chưa có đồ', 'Hãy thêm vài món đồ vào tủ trước khi mix nhé!');
       return;
     }
+    if (!profile) {
+      Alert.alert('Chưa có profile', 'Hãy thiết lập profile trước để gợi ý chính xác hơn!');
+      return;
+    }
+    setGenerating(true);
+    generateOutfits.mutate();
+    setGenerating(false);
+  }, [items, profile, generateOutfits]);
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Animated.sequence([
-      Animated.timing(buttonScale, { toValue: 0.93, duration: 80, useNativeDriver: true }),
-      Animated.timing(buttonScale, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
+  const hasOutfits = outfits.length > 0;
 
-    generateMutation.mutate(undefined, {
-      onSuccess: (data) => {
-        if (data && data.length > 0) {
-          setGeneratedOutfits(data);
-          addOutfits(data);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          console.log('[MixDo] Generation complete -', data.length, 'outfits');
-
-          if (profile.fullBodyPhotoUri) {
-            console.log('[MixDo] Starting try-on image generation for all outfits...');
-            data.forEach((outfit) => {
-              generateTryOnImage(outfit);
-            });
-          }
-        } else {
-          Alert.alert('Hmm', 'AI khong tao duoc outfit phu hop. Thu lai nhe!');
-        }
-      },
-      onError: (error) => {
-        console.error('[MixDo] Generate error:', error);
-        if ((error as Error).message === 'NOT_ENOUGH_ITEMS') {
-          Alert.alert('Chua du do', 'Them it nhat 2 mon vao tu.');
-        } else {
-          Alert.alert('Loi', 'Khong the tao outfit. Vui long thu lai.');
-        }
-      },
-    });
-  }, [items, profile, occasion, selectedCeleb, generateMutation, addOutfits, buttonScale, generateTryOnImage]);
-
-  const handleRetryTryOn = useCallback((outfit: OutfitSuggestion) => {
-    generateTryOnImage(outfit);
-  }, [generateTryOnImage]);
-
-  const isGenerating = generateMutation.isPending;
-  const styles = makeStyles(colors);
+  const emptyState = (
+    <View style={styles.emptyState}>
+      <UserCheck stroke={colors.textSecondary} size={48} />
+      <Text style={styles.emptyTitle}>Chưa có gợi ý nào</Text>
+      <Text style={styles.emptyHint}>Chọn dịp và celeb, rồi bấm Mix cho tôi nhé!</Text>
+    </View>
+  );
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>🎯 Chon dip</Text>
-        <View style={styles.occasionGrid}>
-          {OCCASION_OPTIONS.map((opt) => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[styles.occasionChip, occasion === opt.value && styles.occasionChipActive]}
-              onPress={() => {
-                setOccasion(opt.value);
-                Haptics.selectionAsync();
-              }}
-              testID={`occasion-${opt.value}`}
-            >
-              <Text style={styles.occasionEmoji}>{opt.emoji}</Text>
-              <Text style={[styles.occasionLabel, occasion === opt.value && styles.occasionLabelActive]}>
-                {opt.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {occasion === 'celeb' && (
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>⭐ Chon Celeb/KOL</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.celebScroll}>
-            <View style={styles.celebRow}>
-              {CELEB_LIST.map((name) => (
-                <TouchableOpacity
-                  key={name}
-                  style={[styles.celebChip, selectedCeleb === name && styles.celebChipActive]}
-                  onPress={() => {
-                    setSelectedCeleb(name);
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={[styles.celebText, selectedCeleb === name && styles.celebTextActive]}>
-                    {name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      )}
-
-      {profile.fullBodyPhotoUri ? (
-        <View style={styles.tryOnBanner}>
-          <UserCheck size={18} color={colors.success} />
-          <View style={styles.tryOnBannerContent}>
-            <Text style={styles.tryOnBannerTitle}>Thu do AI san sang</Text>
-            <Text style={styles.tryOnBannerSub}>AI se chinh sua anh ban, chi thay do - giu nguyen mat, dang, phong nen 100%</Text>
+      <Animated.View style={[styles.resultsSection, { opacity: animatedValue }]}>
+        <View style={styles.profilePreview}>
+          <View style={styles.profilePreviewLeft}>
+            <Text style={styles.profilePreviewTitle}>Profile của bạn</Text>
+            <Text style={styles.profilePreviewSub}>{profile?.gender} · ${profile?.age} tuổi</Text>
+            <Text style={styles.profilePreviewSub}>{profile?.height}cm · ${profile?.weight}kg</Text>
+            <Text style={styles.profilePreviewSub}>{BODY_SHAPE_LABELS[profile?.bodyShape || '']}</Text>
+            <Text style={styles.profilePreviewSub}>{SKIN_TONE_LABELS[profile?.skinTone || '']}</Text>
+          </View>
+          <View style={styles.profilePreviewRight}>
+            <Text style={styles.profilePreviewTitle}>Tủ đồ</Text>
+            <Text style={styles.profilePreviewSub}>{items.length} món</Text>
           </View>
         </View>
-      ) : (
-        <View style={styles.noPhotoBanner}>
-          <ImageOff size={18} color={colors.textTertiary} />
-          <View style={styles.tryOnBannerContent}>
-            <Text style={styles.noPhotoBannerTitle}>Chua co anh toan than</Text>
-            <Text style={styles.noPhotoBannerSub}>Tai anh o tab Tu do de AI thu do thuc te len nguoi ban</Text>
-          </View>
-        </View>
-      )}
 
-      {items.length < 2 && (
-        <View style={styles.warningCard}>
-          <AlertCircle size={18} color={colors.error} />
-          <Text style={styles.warningText}>
-            Them it nhat 2 mon do vao tu de bat dau mix outfit
-          </Text>
-        </View>
-      )}
+        <TouchableOpacity style={styles.dropdown}>
+          <Text style={styles.dropdownText}>{occasion || 'Chọn dịp'}</Text>
+          <Sparkles stroke={colors.primary} size={20} />
+        </TouchableOpacity>
 
-      <View style={styles.profilePreview}>
-        <Text style={styles.profilePreviewText}>
-          {genderLabel} • {profile.age}t • {profile.height}cm/{profile.weight}kg • {bodyShapeLabel} • Da {skinToneLabel}
-        </Text>
-        <Text style={styles.profilePreviewSub}>
-          {items.length} mon do trong tu
-        </Text>
-      </View>
+        <TouchableOpacity style={styles.dropdown}>
+          <Text style={styles.dropdownText}>{celeb || 'Chọn celeb'}</Text>
+          <Wand2 stroke={colors.primary} size={20} />
+        </TouchableOpacity>
 
-      <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
         <TouchableOpacity
-          style={[styles.generateBtn, isGenerating && styles.generateBtnDisabled]}
+          style={[styles.generateBtn, generating && styles.generateBtnDisabled]}
           onPress={handleGenerate}
-          disabled={isGenerating}
-          activeOpacity={0.85}
-          testID="generate-btn"
+          disabled={generating}
         >
-          {isGenerating ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color="#FFFFFF" size="small" />
-              <Text style={styles.generateText}>
-                AI dang mix do cho ban...
-              </Text>
-            </View>
+          {generating ? (
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <View style={styles.loadingRow}>
-              <Wand2 size={22} color="#FFFFFF" />
-              <Text style={styles.generateText}>Mix cho tui!</Text>
-              <Sparkles size={18} color="#FFFFFF" />
+              <Wand2 stroke="#FFFFFF" size={20} />
+              <Text style={styles.generateText}>Mix cho tôi</Text>
             </View>
           )}
         </TouchableOpacity>
-      </Animated.View>
 
-      {generatedOutfits.length > 0 && (
-        <View style={styles.resultsSection}>
-          <Text style={styles.resultsTitle}>✨ Goi y cho ban</Text>
-          {profile.fullBodyPhotoUri && (
-            <Text style={styles.resultsHint}>AI dang tao anh thu do thuc te - giu nguyen mat, dang, phong nen cua ban</Text>
-          )}
-          {generatedOutfits.map((outfit) => (
-            <OutfitCard
-              key={outfit.id}
-              outfit={outfit}
-              onFeedback={setFeedback}
-              onToggleFavorite={toggleFavorite}
-              onRetryTryOn={handleRetryTryOn}
-            />
-          ))}
-        </View>
-      )}
+        {hasOutfits ? (
+          <View style={styles.resultsSection}>
+            <Text style={styles.resultsTitle}>Gợi ý của bạn</Text>
+            <Text style={styles.resultsHint}>Swipe để xem thêm chi tiết</Text>
+            {outfits.map((outfit, index) => (
+              <OutfitCard
+                key={outfit.id}
+                outfit={outfit}
+                onFeedback={setFeedback}
+                onToggleFavorite={toggleFavorite}
+                onRetryTryOn={onRetryTryOn}
+                showFeedback={true}
+              />
+            ))}
+          </View>
+        ) : emptyState}
+      </Animated.View>
     </ScrollView>
   );
 }
 
-const makeStyles = (colors: any) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    content: {
-      padding: 16,
-      paddingBottom: 40,
-    },
-    sectionCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 18,
-      padding: 16,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
-    },
-    sectionTitle: {
-      fontSize: 16,
-      fontWeight: '700' as const,
-      color: colors.text,
-      marginBottom: 12,
-    },
-    occasionGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    occasionChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderRadius: 12,
-      backgroundColor: colors.surfaceAlt,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-    },
-    occasionChipActive: {
-      backgroundColor: colors.primarySoft,
-      borderColor: colors.primary,
-    },
-    occasionEmoji: {
-      fontSize: 16,
-    },
-    occasionLabel: {
-      fontSize: 13,
-      fontWeight: '500' as const,
-      color: colors.textSecondary,
-    },
-    occasionLabelActive: {
-      color: colors.primary,
-      fontWeight: '600' as const,
-    },
-    celebScroll: {
-      marginHorizontal: -8,
-    },
-    celebRow: {
-      flexDirection: 'row',
-      gap: 8,
-      paddingHorizontal: 8,
-    },
-    celebChip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 20,
-      backgroundColor: colors.surfaceAlt,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-    },
-    celebChipActive: {
-      backgroundColor: colors.primarySoft,
-      borderColor: colors.primary,
-    },
-    celebText: {
-      fontSize: 13,
-      fontWeight: '500' as const,
-      color: colors.textSecondary,
-    },
-    celebTextActive: {
-      color: colors.primary,
-      fontWeight: '600' as const,
-    },
-    tryOnBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      backgroundColor: 'rgba(91, 160, 122, 0.08)',
-      borderRadius: 14,
-      padding: 14,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: 'rgba(91, 160, 122, 0.2)',
-    },
-    tryOnBannerContent: {
-      flex: 1,
-    },
-    tryOnBannerTitle: {
-      fontSize: 14,
-      fontWeight: '600' as const,
-      color: colors.success,
-    },
-    tryOnBannerSub: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginTop: 2,
-    },
-    noPhotoBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 14,
-      padding: 14,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
-    },
-    noPhotoBannerTitle: {
-      fontSize: 14,
-      fontWeight: '600' as const,
-      color: colors.textSecondary,
-    },
-    noPhotoBannerSub: {
-      fontSize: 12,
-      color: colors.textTertiary,
-      marginTop: 2,
-    },
-    warningCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      backgroundColor: 'rgba(217, 79, 79, 0.08)',
-      borderRadius: 12,
-      padding: 14,
-      marginBottom: 12,
-    },
-    warningText: {
-      flex: 1,
-      fontSize: 13,
-      color: colors.error,
-    },
-    profilePreview: {
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      marginBottom: 14,
-      alignItems: 'center',
-    },
-    profilePreviewText: {
-      fontSize: 12,
-      fontWeight: '600' as const,
-      color: colors.textSecondary,
-    },
-    profilePreviewSub: {
-      fontSize: 11,
-      color: colors.textTertiary,
-      marginTop: 2,
-    },
-    generateBtn: {
-      backgroundColor: colors.primary,
-      borderRadius: 16,
-      paddingVertical: 16,
-      alignItems: 'center',
-      marginBottom: 20,
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    generateBtnDisabled: {
-      opacity: 0.8,
-    },
-    loadingRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    generateText: {
-      fontSize: 17,
-      fontWeight: '700' as const,
-      color: '#FFFFFF',
-    },
-    resultsSection: {
-      marginTop: 4,
-    },
-    resultsTitle: {
-      fontSize: 18,
-      fontWeight: '700' as const,
-      color: colors.text,
-      marginBottom: 4,
-    },
-    resultsHint: {
-      fontSize: 12,
-      color: colors.textTertiary,
-      marginBottom: 14,
-    },
-  });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  contentContainer: {
+    padding: 16,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    marginVertical: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  emptyHint: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center' as const,
+  },
+  dropdown: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: colors.text,
+  },
+  profilePreview: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  profilePreviewLeft: {
+    alignItems: 'flex-start',
+  },
+  profilePreviewRight: {
+    alignItems: 'flex-end',
+  },
+  profilePreviewTitle: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  profilePreviewSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  generateBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  generateBtnDisabled: {
+    opacity: 0.8,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  generateText: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  resultsSection: {
+    marginTop: 4,
+  },
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  resultsHint: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginBottom: 14,
+  },
+});
