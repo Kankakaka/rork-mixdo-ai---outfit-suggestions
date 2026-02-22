@@ -143,47 +143,23 @@ function buildTryOnPrompt(
   const isMale = genderLabel === 'Nam';
   const personLabel = isMale ? 'man' : genderLabel === 'Nu' ? 'woman' : 'person';
 
-  const maleSpecificContext = isMale
-    ? `\nSPECIFIC CONTEXT FOR THIS MALE PHOTO:
-- This is a Vietnamese man taking a mirror selfie with his phone
-- Keep EXACT body pose: hands in pockets or holding phone, standing stance, leaning angle
-- Keep EXACT face: male facial features, hair, expression (e.g. looking down at phone), skin tone unchanged
-- Keep EXACT mirror selfie environment: black-white striped curtains, blue chair, olive tree plant, kitchen sink, mirror reflection, all room details, natural daylight from window
-- Keep EXACT mirror reflection angle, phone position, hand grip
-- The clothing mask area is ONLY the torso (shirt/jacket area), legs (pants/shorts area), and feet (shoes area) - do NOT touch face, hair, hands, arms skin, or any background pixel`
-    : '';
+  return `Preserve 100% exact original photo: face, hair, expression, skin tone, body pose, proportions, all background details (neon signs, plants, bowls/chopsticks, windows, people behind, striped curtains, chairs, furniture, kitchen elements, mirrors, reflections, every single visible object), lighting, vibe, atmosphere, camera angle, photo grain, color temperature, white balance. Absolutely NO additions, NO removals, NO modifications to anything except clothing.
 
-  const femaleSpecificContext = genderLabel === 'Nu'
-    ? `\nSPECIFIC CONTEXT FOR THIS FEMALE PHOTO:
-- Keep EXACT face, hair, makeup, expression, skin tone unchanged
-- Keep EXACT body pose, hand positions, stance, body proportions
-- Keep EXACT background environment, room details, lighting, shadows, reflections
-- The clothing mask area is ONLY the torso, legs, and feet - do NOT touch face, hair, hands, arms skin, or any background pixel`
-    : '';
+This is a real-life photo of a Vietnamese ${personLabel}, ${age} years old, ${height}cm, ${weight}kg, ${bodyShapeLabel} body, ${skinToneLabel} skin.
 
-  return `Edit this exact real-life photo of a Vietnamese ${personLabel}, ${age} years old, ${height}cm tall, ${weight}kg, ${bodyShapeLabel} body shape, ${skinToneLabel} skin tone.${maleSpecificContext}${femaleSpecificContext}
+MASK REGION: ONLY the clothing and shoes currently worn on the body. Do NOT touch face, hair, hands, arms skin, neck, any exposed skin, or ANY background pixel.
 
-CRITICAL RULES - MUST FOLLOW:
-1. Keep the EXACT same face, hair, hairstyle, expression, facial features completely unchanged - zero modification to identity
-2. Keep the EXACT same body pose, hand positions, body proportions, stance, leaning angle unchanged
-3. Keep the EXACT same background - every single object, furniture, wall, curtain pattern, plant, chair color, sink, mirror, lighting direction, shadows, reflections must remain 100% pixel-identical
-4. Keep the EXACT same photo quality, camera angle, perspective, grain, color temperature, white balance
-5. Do NOT add, remove, move, or alter ANY background elements - not even slightly
-6. Do NOT change the person's identity, skin color, body shape, muscle definition, or any physical features
-7. Do NOT generate a new person, new pose, or new background under any circumstances
-8. MASK ONLY the clothing/shoes region on the body - leave all skin, face, hair, background pixels untouched
+ONLY SWAP clothing to: ${garmentDesc}
 
-ONLY CHANGE: Replace the clothing and shoes the person is currently wearing with: ${garmentDesc}
+Clothing swap rules:
+- Fit naturally on the EXACT same body shape, pose, and stance
+- Realistic fabric texture, drape, wrinkles, creases matching body position
+- Shadows and highlights on new clothing must match EXISTING lighting direction exactly
+- Clothing edges blend seamlessly with exposed skin areas
+- Result must look like the person actually wore these items when the original photo was taken
+- Maintain realistic fit proportions for ${height}cm ${weight}kg ${bodyShapeLabel} body
 
-Clothing replacement rules:
-- New clothing must fit naturally on the EXACT same body shape and pose
-- Realistic fabric drape, wrinkles, and creases matching the body's stance
-- Shadows on clothing must match the EXISTING lighting direction in the photo
-- Clothing edges must blend seamlessly with exposed skin (arms, neck, legs)
-- The result should look like the person actually wore these exact items when the original photo was taken
-- Maintain the same level of clothing fit (not tighter or looser than realistic)
-
-Output: High resolution, photorealistic, no artifacts, no deformation, no blurring, no uncanny valley effect.`;
+Output: High resolution, photorealistic, zero artifacts, zero deformation, zero blurring, zero uncanny valley. The ONLY difference between input and output should be the clothing items.`;
 }
 
 export default function GenerateScreen() {
@@ -203,14 +179,86 @@ export default function GenerateScreen() {
   const bodyShapeLabel = BODY_SHAPE_LABELS[profile.bodyShape];
   const skinToneLabel = SKIN_TONE_LABELS[profile.skinTone];
 
-  const generateTryOnImage = useCallback(async (outfit: OutfitSuggestion) => {
+  const callImageEditAPI = useCallback(async (
+    prompt: string,
+    images: Array<{ type: 'image'; image: string }>,
+    label: string,
+  ): Promise<string | null> => {
+    try {
+      console.log(`[MixDo] Calling image edit API (${label})...`);
+      const response = await fetch('https://toolkit.rork.com/images/edit/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          images,
+          aspectRatio: '3:4',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[MixDo] Image edit API error (${label}):`, response.status, errorText);
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.image?.base64Data) {
+        console.log(`[MixDo] Image edit success (${label}), base64 size:`, result.image.base64Data.length);
+        return result.image.base64Data;
+      }
+      return null;
+    } catch (error) {
+      console.error(`[MixDo] Image edit call failed (${label}):`, error);
+      return null;
+    }
+  }, []);
+
+  const scoreSimilarity = useCallback(async (
+    originalBase64: string,
+    candidateBase64: string,
+    candidateIndex: number,
+  ): Promise<number> => {
+    try {
+      console.log(`[MixDo] Scoring similarity for candidate ${candidateIndex}...`);
+      const result = await generateObject({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', image: originalBase64 },
+              { type: 'image', image: candidateBase64 },
+              {
+                type: 'text',
+                text: 'Compare these two photos. The first is the original, the second is an AI-edited try-on. Score how well the edited version preserves the original on a scale of 1-100. Consider: face identity match, body pose match, background preservation (every object, furniture, lighting), photo quality/grain match. Only clothing should differ. Return your score.',
+              },
+            ],
+          },
+        ],
+        schema: z.object({
+          score: z.number().min(1).max(100).describe('Similarity score 1-100, higher = better preservation of original'),
+          reasoning: z.string().describe('Brief explanation of score'),
+        }),
+      });
+      console.log(`[MixDo] Candidate ${candidateIndex} score: ${result.score} - ${result.reasoning}`);
+      return result.score;
+    } catch (error) {
+      console.error(`[MixDo] Scoring failed for candidate ${candidateIndex}:`, error);
+      return 50;
+    }
+  }, []);
+
+  const generateTryOnImage = useCallback(async (outfit: OutfitSuggestion, retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    const NUM_CANDIDATES = 3;
+
     if (!profile.fullBodyPhotoUri || outfit.items.length === 0) {
       console.log('[MixDo] No full body photo or no items, skipping try-on');
       return;
     }
 
     const outfitId = outfit.id;
-    console.log('[MixDo] Starting try-on image generation for outfit:', outfitId);
+    console.log(`[MixDo] Starting try-on generation for outfit: ${outfitId} (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
 
     setTryOnProgress(prev => ({ ...prev, [outfitId]: true }));
     setGeneratedOutfits(prev => prev.map(o =>
@@ -247,54 +295,79 @@ export default function GenerateScreen() {
         skinToneLabel,
       );
 
-      console.log('[MixDo] Calling image edit API with', images.length, 'images...');
-      console.log('[MixDo] Prompt:', prompt.substring(0, 200) + '...');
+      console.log(`[MixDo] Generating ${NUM_CANDIDATES} candidate images...`);
 
-      const response = await fetch('https://toolkit.rork.com/images/edit/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          images,
-          aspectRatio: '3:4',
-        }),
-      });
+      const candidatePromises = Array.from({ length: NUM_CANDIDATES }, (_, i) =>
+        callImageEditAPI(prompt, images, `candidate-${i + 1}`)
+      );
+      const candidates = await Promise.all(candidatePromises);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[MixDo] Image edit API error:', response.status, errorText);
-        throw new Error(`API error: ${response.status}`);
+      const validCandidates = candidates
+        .map((base64, idx) => ({ base64, idx }))
+        .filter((c): c is { base64: string; idx: number } => c.base64 !== null);
+
+      console.log(`[MixDo] Got ${validCandidates.length}/${NUM_CANDIDATES} valid candidates`);
+
+      if (validCandidates.length === 0) {
+        throw new Error('All candidate generations failed');
       }
 
-      const result = await response.json();
-      console.log('[MixDo] Image edit API success, saving result...');
+      let bestCandidate = validCandidates[0];
 
-      if (result.image?.base64Data) {
-        const filename = `tryon_${outfitId}_${Date.now()}.png`;
-        const savedUri = await saveBase64AsImage(result.image.base64Data, filename);
+      if (validCandidates.length > 1) {
+        console.log('[MixDo] Scoring candidates with Vision similarity...');
+        const scorePromises = validCandidates.map(c =>
+          scoreSimilarity(userPhotoBase64, c.base64, c.idx)
+        );
+        const scores = await Promise.all(scorePromises);
 
-        if (savedUri) {
-          console.log('[MixDo] Try-on image saved:', savedUri);
-          setGeneratedOutfits(prev => prev.map(o =>
-            o.id === outfitId ? { ...o, generatedImageUri: savedUri, isGeneratingImage: false } : o
-          ));
-          updateOutfitImage(outfitId, savedUri, false);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          return;
-        }
+        let bestScore = -1;
+        scores.forEach((score, i) => {
+          console.log(`[MixDo] Candidate ${validCandidates[i].idx + 1}: score ${score}`);
+          if (score > bestScore) {
+            bestScore = score;
+            bestCandidate = validCandidates[i];
+          }
+        });
+        console.log(`[MixDo] Best candidate: #${bestCandidate.idx + 1} with score ${bestScore}`);
       }
 
-      throw new Error('No image data in response');
+      const filename = `tryon_${outfitId}_${Date.now()}.png`;
+      const savedUri = await saveBase64AsImage(bestCandidate.base64, filename);
+
+      if (savedUri) {
+        console.log('[MixDo] Try-on image saved:', savedUri);
+        setGeneratedOutfits(prev => prev.map(o =>
+          o.id === outfitId ? { ...o, generatedImageUri: savedUri, isGeneratingImage: false } : o
+        ));
+        updateOutfitImage(outfitId, savedUri, false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        return;
+      }
+
+      throw new Error('Failed to save best candidate image');
     } catch (error) {
-      console.error('[MixDo] Try-on generation failed:', error);
+      console.error(`[MixDo] Try-on generation failed (attempt ${retryCount + 1}):`, error);
+
+      if (retryCount < MAX_RETRIES) {
+        console.log(`[MixDo] Auto-retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+        setTimeout(() => {
+          generateTryOnImage(outfit, retryCount + 1);
+        }, 1500 * (retryCount + 1));
+        return;
+      }
+
+      console.error('[MixDo] All retries exhausted, giving up');
       setGeneratedOutfits(prev => prev.map(o =>
         o.id === outfitId ? { ...o, isGeneratingImage: false } : o
       ));
       updateOutfitImage(outfitId, undefined, false);
     } finally {
-      setTryOnProgress(prev => ({ ...prev, [outfitId]: false }));
+      if (retryCount >= MAX_RETRIES || !profile.fullBodyPhotoUri) {
+        setTryOnProgress(prev => ({ ...prev, [outfitId]: false }));
+      }
     }
-  }, [profile, genderLabel, bodyShapeLabel, skinToneLabel, updateOutfitImage]);
+  }, [profile, genderLabel, bodyShapeLabel, skinToneLabel, updateOutfitImage, callImageEditAPI, scoreSimilarity]);
 
   const generateMutation = useMutation({
     mutationFn: async () => {

@@ -138,7 +138,7 @@ function OutfitCard({ outfit, onFeedback, onToggleFavorite, onRetryTryOn, showFe
                     <View style={[styles.generatingPlaceholder, { height: SIDE_HEIGHT }]}>
                       <ActivityIndicator size="small" color={colors.primary} />
                       <Text style={styles.generatingText}>AI dang thu do...</Text>
-                      <Text style={styles.generatingSubtext}>Giu nguyen mat & phong nen</Text>
+                      <Text style={styles.generatingSubtext}>Tao 3 anh, chon anh giong nhat</Text>
                     </View>
                   ) : hasTryOn ? (
                     <TouchableOpacity
@@ -179,7 +179,7 @@ function OutfitCard({ outfit, onFeedback, onToggleFavorite, onRetryTryOn, showFe
                   <View style={[styles.generatingPlaceholder, { height: SIDE_HEIGHT }]}>
                     <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={styles.generatingText}>AI dang thu do...</Text>
-                    <Text style={styles.generatingSubtext}>Giu nguyen mat & phong nen</Text>
+                    <Text style={styles.generatingSubtext}>Tao 3 anh, chon anh giong nhat</Text>
                   </View>
                 ) : hasTryOn ? (
                   <TouchableOpacity
@@ -252,20 +252,38 @@ function OutfitCard({ outfit, onFeedback, onToggleFavorite, onRetryTryOn, showFe
             <Shirt size={14} color={colors.primary} />
             <Text style={styles.tryOnTitle}>Do goi y</Text>
           </View>
-          <View style={styles.itemsRow}>
-            {outfit.items.map((item, idx) => (
-              <TouchableOpacity
-                key={item.id + '-' + idx}
-                style={styles.itemThumb}
-                onPress={() => openZoom(item.croppedUri || item.imageUri)}
-                activeOpacity={0.9}
-              >
-                <Image source={{ uri: item.imageUri }} style={styles.thumbImage} contentFit="cover" />
-                <Text style={styles.thumbLabel} numberOfLines={1}>
-                  {CATEGORY_EMOJI[item.category]} {item.label.split(' ').slice(0, 2).join(' ')}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.collageContainer}>
+            <View style={styles.collageUserPhoto}>
+              <Image
+                source={{ uri: outfit.originalPhotoUri }}
+                style={styles.collageUserImage}
+                contentFit="cover"
+              />
+              <View style={styles.imageLabel}>
+                <Text style={styles.imageLabelText}>Anh goc</Text>
+              </View>
+            </View>
+            <View style={styles.collageItemsPanel}>
+              {outfit.items.map((item, idx) => (
+                <TouchableOpacity
+                  key={item.id + '-collage-' + idx}
+                  style={styles.collageItemWrapper}
+                  onPress={() => openZoom(item.croppedUri || item.imageUri)}
+                  activeOpacity={0.9}
+                >
+                  <View style={styles.collageItemShadow}>
+                    <Image
+                      source={{ uri: item.imageUri }}
+                      style={styles.collageItemImage}
+                      contentFit="cover"
+                    />
+                  </View>
+                  <Text style={styles.collageItemLabel} numberOfLines={1}>
+                    {CATEGORY_EMOJI[item.category]} {item.label.split(' ').slice(0, 2).join(' ')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
           {onRetryTryOn && (
             <TouchableOpacity
@@ -587,6 +605,58 @@ const makeStyles = (colors: any) => {
     miniThumbImg: {
       width: '100%',
       height: '100%',
+    },
+    collageContainer: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 12,
+      borderRadius: 16,
+      overflow: 'hidden',
+      backgroundColor: colors.surfaceAlt,
+      padding: 8,
+    },
+    collageUserPhoto: {
+      flex: 1,
+      borderRadius: 12,
+      overflow: 'hidden',
+      minHeight: 180,
+    },
+    collageUserImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 12,
+    },
+    collageItemsPanel: {
+      flex: 1,
+      gap: 6,
+      justifyContent: 'center',
+    },
+    collageItemWrapper: {
+      alignItems: 'center',
+    },
+    collageItemShadow: {
+      width: '90%',
+      aspectRatio: 1,
+      borderRadius: 12,
+      overflow: 'hidden',
+      backgroundColor: colors.surface,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.18,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    collageItemImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 12,
+    },
+    collageItemLabel: {
+      fontSize: 9,
+      color: colors.textSecondary,
+      marginTop: 3,
+      textAlign: 'center' as const,
+      fontWeight: '500' as const,
     },
     itemsRow: {
       flexDirection: 'row',
